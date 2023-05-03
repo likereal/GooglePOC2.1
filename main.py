@@ -16,7 +16,17 @@ def mainWork():
     ).json()
     if auth_json['status'] == 'SUCCESS':
         authToken = 'AnaplanAuthToken ' + auth_json['tokenInfo']['tokenValue']
-        return "AnaplanAuthToken" + auth_json['status']
+        print("AnaplanAuthToken" + auth_json['status'])
+        
+        '''Token Validation'''
+        auth_url = 'https://auth.anaplan.com/token/validate'
+        auth_json2 = requests.get(
+            url=auth_url,
+            headers={
+                'Authorization': authToken
+            }
+        ).json()
+        return "Token Validation" + auth_json2['status']
 
 
 if __name__ == '__main__':
