@@ -1,6 +1,8 @@
 from flask import Flask
 import requests
 import json
+import pandas as pd
+from io import StringIO
 
 app = Flask(__name__)
 
@@ -29,7 +31,7 @@ def mainWork():
         print("Token Validation" + auth_json2['status'])
         if auth_json2['status'] == 'SUCCESS':
             expiresAt = auth_json2['tokenInfo']['expiresAt']
-            print("32" + auth_json2['status'])
+            print("Auth Token Validation" + auth_json2['status'])
             
             ExportProcess = "Export_from_anaplan"
         
@@ -41,12 +43,12 @@ def mainWork():
                     'Authorization': authToken
                 }
             ).json()
-            print("Getting Process from Anaplan" + auth_json3['status']['message'])
+            print("Getting Process from Anaplan " + auth_json3['status']['message'])
             if auth_json3['status']['message'] == 'Success':
                 for process in auth_json3['processes']:
                     if ExportProcess == process['name']:
                         processID = process['id']
-                        print("Anaplan Process ID" + processID)
+                        print("Anaplan Process ID " + processID)
                         '''Starting the Process'''
                         auth_url = f"https://api.anaplan.com/2/0/workspaces/8a868cdc7bd6c9ae017be5b938c83112/models/8B4052CB2DBE4E6AAEF8E96B968EFCCD/processes/{processID}/tasks"
                         auth_json4 = requests.post(
@@ -60,7 +62,7 @@ def mainWork():
                         print("Anaplan Process Definition"+auth_json4['status']['message'])
                         if auth_json4['status']['message'] == 'Success':
                             taskID = auth_json4['task']['taskId']
-                            print("Anaplan Process Task ID"+taskID)
+                            print("Anaplan Process Task ID "+taskID)
                             '''Checking the Status of the Process'''
                             Flag = True
                             while Flag:
@@ -73,11 +75,49 @@ def mainWork():
                                     }
                                 ).json()
                                 if auth_json5['task']['currentStep'] == "Failed.":
-                                    return("Anaplan Process Failed")
+                                    print("Anaplan Process Failed")
                                 elif auth_json5['task']['currentStep'] == "Complete.":
-                                    return "Anaplan Process Complete"
+                                    print("Anaplan Process Complete")
                                     Flag = False
-    return "Anaplan Process Complete"
+            '''Get files from anaplan'''
+            url = f"https://api.anaplan.com/2/0/workspaces/8a868cdc7bd6c9ae017be5b938c83112/models/8B4052CB2DBE4E6AAEF8E96B968EFCCD/files/"
+            getFileData = requests.get(
+                url = url,
+                headers = {
+                    'Authorization': authToken
+                }
+            )
+            getFileData_json = getFileData.json()
+            print("Get Files from Anaplan"+ getFileData_json['status']['message'])
+
+            if getFileData_json['status']['message'] == 'Success':
+                file_info = getFileData_json['files'];
+                
+                for file in file_info:
+                    if file['name'] == "Google_Demo.csv":
+                        fileID = file['id']
+                        url = f"https://api.anaplan.com/2/0/workspaces/8a868cdc7bd6c9ae017be5b938c83112/models/8B4052CB2DBE4E6AAEF8E96B968EFCCD/files/{fileID}/chunks/"
+                        getChunk = requests.get(
+                            url,
+                            headers = {
+                                'Authorization': authToken,
+                                "Content-Type": "application/json"
+                            }
+                        )
+                        getChunk = getChunk.json()
+                        if getChunk['status']['message'] == "Success":
+                            print(f"Getting the chunk count of {file['id']} COMPLETED")
+                            for chunk in getChunk['chunks']:
+                                url = f"https://api.anaplan.com/2/0/workspaces/8a868cdc7bd6c9ae017be5b938c83112/models/8B4052CB2DBE4E6AAEF8E96B968EFCCD/files/{fileID}/chunks/{chunk['id']}"
+                                getChunk = requests.get(
+                                    url,
+                                    headers = {
+                                        'Authorization': authToken,
+                                        "Content-Type": "application/json"
+                                    }
+                                )
+                                df = pd.read_csv(StringIO(getChunk.text), sep=",", index_col=['Time'])
+                                return df.to_string(index = False)
 
 
 if __name__ == '__main__':
