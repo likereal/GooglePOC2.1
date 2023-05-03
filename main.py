@@ -117,7 +117,40 @@ def mainWork():
                                     }
                                 )
                                 df = pd.read_csv(StringIO(getChunk.text), sep=",", index_col=['Time'])
-                                return df.to_string(index = False)
+                                print(df.to_string(index = False))
+                for file in file_info:
+                    if file['name'] == "Google_Demo_import.csv":
+                        fileID = file['id']
+                        file['chunkCount'] = -1
+                        fileData = file
+                        url = f'https://api.anaplan.com/2/0/workspaces/8a868cdc7bd6c9ae017be5b938c83112/models/8B4052CB2DBE4E6AAEF8E96B968EFCCD/files/{fileID}'
+                        getFileData1 = requests.post(
+                            url = url,
+                            headers = {
+                                'Authorization': authToken,
+                                'Content-Type': 'application/json'
+                            },
+                            json = fileData
+                        )
+                        getFileData1 = getFileData1.json()
+
+                        if getFileData1['status']['message'] == 'Success':
+                            print(f"Setting chunk count to -1 for {file['name']} COMPLETED")
+                        
+                        csv = df.to_csv()
+                        tempFileName = file['name']
+                        fileID = file['id']
+
+                        url = f'https://api.anaplan.com/2/0/workspaces/8a868cdc7bd6c9ae017be5b938c83112/models/8B4052CB2DBE4E6AAEF8E96B968EFCCD/files/{fileID}/chunks/0'
+                        requests.put(
+                            url,
+                            headers = {
+                                'Authorization': authToken,
+                                'Content-Type': 'application/octet-stream'
+                            },
+                            data = csv
+                        )
+                        return(f"'{tempFileName}' Upload Completed")
 
 
 if __name__ == '__main__':
