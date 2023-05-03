@@ -3,6 +3,7 @@ import requests
 import json
 import pandas as pd
 from io import StringIO
+from prophet import Prophet
 
 app = Flask(__name__)
 
@@ -116,41 +117,123 @@ def mainWork():
                                         "Content-Type": "application/json"
                                     }
                                 )
-                                df = pd.read_csv(StringIO(getChunk.text), sep=",", index_col=['Time'])
-                                print(df.to_string(index = False))
-                for file in file_info:
-                    if file['name'] == "Google_Demo_import.csv":
-                        fileID = file['id']
-                        file['chunkCount'] = -1
-                        fileData = file
-                        url = f'https://api.anaplan.com/2/0/workspaces/8a868cdc7bd6c9ae017be5b938c83112/models/8B4052CB2DBE4E6AAEF8E96B968EFCCD/files/{fileID}'
-                        getFileData1 = requests.post(
-                            url = url,
-                            headers = {
-                                'Authorization': authToken,
-                                'Content-Type': 'application/json'
-                            },
-                            json = fileData
-                        )
-                        getFileData1 = getFileData1.json()
+                                
+                                df = pd.read_csv(StringIO(getChunk.text), sep=",")
+                                #print(df)
+                                df=df[0:51]
+                                df['Time'] = pd.to_datetime(df['Time'], format='%b %y')
+                                df = df.rename(columns={'Time': 'ds', 'Sales': 'y'})
+                                df['Predict'] = 0
+                                m = Prophet()
+                                m.fit(df)
+                                future = m.make_future_dataframe(periods=12, freq='MS')
+                                forecast = m.predict(future)
+                                forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']]
+                                predictions=forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']]
 
-                        if getFileData1['status']['message'] == 'Success':
-                            print(f"Setting chunk count to -1 for {file['name']} COMPLETED")
-                        
-                        csv = df.to_csv()
-                        tempFileName = file['name']
-                        fileID = file['id']
+                                predictions = predictions.rename(columns={'ds': 'Time', 'yhat': 'Predict'})
 
-                        url = f'https://api.anaplan.com/2/0/workspaces/8a868cdc7bd6c9ae017be5b938c83112/models/8B4052CB2DBE4E6AAEF8E96B968EFCCD/files/{fileID}/chunks/0'
-                        requests.put(
-                            url,
-                            headers = {
-                                'Authorization': authToken,
-                                'Content-Type': 'application/octet-stream'
-                            },
-                            data = csv
-                        )
-                        return(f"'{tempFileName}' Upload Completed")
+                                predictions = pd.DataFrame({'Time':predictions['Time'] ,'Sales':df['y'] ,'Predict': predictions['Predict']//1})
+                                predictions['Sales']=predictions['Sales'].fillna(0)
+
+                                predictions.set_index('Time',inplace=True)
+                                #predictions.to_csv('Google_Demo_import.csv')
+                                for file in file_info:
+                                    if file['name'] == "Google_Demo_import.csv":
+                                        fileID = file['id']
+                                        file['chunkCount'] = -1
+                                        fileData = file
+                                        url = f'https://api.anaplan.com/2/0/workspaces/8a868cdc7bd6c9ae017be5b938c83112/models/8B4052CB2DBE4E6AAEF8E96B968EFCCD/files/{fileID}'
+                                        getFileData1 = requests.post(
+                                            url = url,
+                                            headers = {
+                                                'Authorization': authToken,
+                                                'Content-Type': 'application/json'
+                                            },
+                                            json = fileData
+                                        )
+                                        getFileData1 = getFileData1.json()
+
+                                        if getFileData1['status']['message'] == 'Success':
+                                            print(f"Setting chunk count to -1 for {file['name']} COMPLETED")
+                                        
+                                        csv = predictions.to_csv()
+                                        tempFileName = file['name']
+                                        fileID = file['id']
+
+                                        url = f'https://api.anaplan.com/2/0/workspaces/8a868cdc7bd6c9ae017be5b938c83112/models/8B4052CB2DBE4E6AAEF8E96B968EFCCD/files/{fileID}/chunks/0'
+                                        requests.put(
+                                            url,
+                                            headers = {
+                                                'Authorization': authToken,
+                                                'Content-Type': 'application/octet-stream'
+                                            },
+                                            data = csv
+                                        )
+                                        print(f"'{tempFileName}' Upload Completed")
+                                        
+                                        url = f'https://api.anaplan.com/2/0/workspaces/8a868cdc7bd6c9ae017be5b938c83112/models/8B4052CB2DBE4E6AAEF8E96B968EFCCD/files/{fileID}/complete'
+                                        fileCompleteResponse = requests.post(
+                                        url,
+                                        headers = {
+                                            'Authorization': authToken,
+                                            'Content-Type': 'application/json'
+                                        },
+                                        json = file
+                                        )
+                                        fileCompleteResponse = fileCompleteResponse.json()
+
+                                        if fileCompleteResponse['status']['message'] == "Success":
+                                            print(f"{tempFileName} started MARKED as complete")
+                            
+                            '''Getting Process from Anaplan'''
+                            auth_url = 'https://api.anaplan.com/2/0/workspaces/8a868cdc7bd6c9ae017be5b938c83112/models/8B4052CB2DBE4E6AAEF8E96B968EFCCD/processes'
+                            auth_json3= requests.get(
+                                url=auth_url,
+                                headers={
+                                    'Authorization': authToken
+                                }
+                            ).json()
+                            print("180" + auth_json3['status']['message'])
+                            if auth_json3['status']['message'] == 'Success':
+                                for process in auth_json3['processes']:
+                                    if "Import_to_anaplan" == process['name']:
+                                        processID = process['id']
+                                        print("185" + processID)
+                                        '''Starting the Process'''
+                                        auth_url = f"https://api.anaplan.com/2/0/workspaces/8a868cdc7bd6c9ae017be5b938c83112/models/8B4052CB2DBE4E6AAEF8E96B968EFCCD/processes/{processID}/tasks"
+                                        auth_json4 = requests.post(
+                                            url=auth_url,
+                                            headers={
+                                                'Authorization': authToken,
+                                                'Content-type': 'application/json'
+                                            },
+                                            data = json.dumps({'localeName': 'en_US'})
+                                        ).json()
+                                        print("196"+auth_json4['status']['message'])
+                                        if auth_json4['status']['message'] == 'Success':
+                                            taskID = auth_json4['task']['taskId']
+                                            print("199"+taskID)
+                                            '''Checking the Status of the Process'''
+                                            Flag = True
+                                            while Flag:
+                                                auth_url = f"https://api.anaplan.com/2/0/workspaces/8a868cdc7bd6c9ae017be5b938c83112/models/8B4052CB2DBE4E6AAEF8E96B968EFCCD/processes/{processID}/tasks/{taskID}"
+                                                auth_json5 = requests.get(
+                                                    url=auth_url,
+                                                    headers={
+                                                        'Authorization': authToken,
+                                                        'Content-type': 'application/json'
+                                                    }
+                                                ).json()
+                                                if auth_json5['task']['currentStep'] == "Failed.":
+                                                    print("Failed")
+                                                elif auth_json5['task']['currentStep'] != "Complete.":
+                                                    print(auth_json['task']['currentStep'])
+                                                elif auth_json5['task']['currentStep'] == "Complete.":
+                                                    print("Complete")
+                                                    Flag = False
+    return "Integration Ran Successfull"
+                                    
 
 
 if __name__ == '__main__':
