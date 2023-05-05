@@ -117,7 +117,7 @@ def mainWork():
                                         "Content-Type": "application/json"
                                     }
                                 )
-                                
+                                print("Prediction Started")
                                 df = pd.read_csv(StringIO(getChunk.text), sep=",")
                                 #print(df)
                                 df=df[0:51]
@@ -137,6 +137,7 @@ def mainWork():
                                 predictions['Sales']=predictions['Sales'].fillna(0)
 
                                 predictions.set_index('Time',inplace=True)
+                                print("Prediction Completed")
                                 #predictions.to_csv('Google_Demo_import.csv')
                                 for file in file_info:
                                     if file['name'] == "Google_Demo_import.csv":
@@ -170,7 +171,7 @@ def mainWork():
                                             },
                                             data = csv
                                         )
-                                        print(f"'{tempFileName}' Upload Completed")
+                                        print("Predicted Data Uploaded to Anaplan")
                                         
                                         url = f'https://api.anaplan.com/2/0/workspaces/8a868cdc7bd6c9ae017be5b938c83112/models/8B4052CB2DBE4E6AAEF8E96B968EFCCD/files/{fileID}/complete'
                                         fileCompleteResponse = requests.post(
@@ -194,12 +195,12 @@ def mainWork():
                                     'Authorization': authToken
                                 }
                             ).json()
-                            print("180" + auth_json3['status']['message'])
+                            print("Gathering Import process from anaplan " + auth_json3['status']['message'])
                             if auth_json3['status']['message'] == 'Success':
                                 for process in auth_json3['processes']:
                                     if "Import_to_anaplan" == process['name']:
                                         processID = process['id']
-                                        print("185" + processID)
+                                        print(processID)
                                         '''Starting the Process'''
                                         auth_url = f"https://api.anaplan.com/2/0/workspaces/8a868cdc7bd6c9ae017be5b938c83112/models/8B4052CB2DBE4E6AAEF8E96B968EFCCD/processes/{processID}/tasks"
                                         auth_json4 = requests.post(
@@ -210,10 +211,10 @@ def mainWork():
                                             },
                                             data = json.dumps({'localeName': 'en_US'})
                                         ).json()
-                                        print("196"+auth_json4['status']['message'])
+                                        print("Generating the taskID " + auth_json4['status']['message'])
                                         if auth_json4['status']['message'] == 'Success':
                                             taskID = auth_json4['task']['taskId']
-                                            print("199"+taskID)
+                                            #print(taskID)
                                             '''Checking the Status of the Process'''
                                             Flag = True
                                             while Flag:
@@ -228,7 +229,7 @@ def mainWork():
                                                 if auth_json5['task']['currentStep'] == "Failed.":
                                                     print("Failed")
                                                 elif auth_json5['task']['currentStep'] != "Complete.":
-                                                    print(auth_json['task']['currentStep'])
+                                                    print("Anaplan Import Process execution "+auth_json['task']['currentStep'])
                                                 elif auth_json5['task']['currentStep'] == "Complete.":
                                                     print("Complete")
                                                     Flag = False
