@@ -211,7 +211,7 @@ def mainWork():
                                             },
                                             data = json.dumps({'localeName': 'en_US'})
                                         ).json()
-                                        print("Generating the taskID " + auth_json4['status']['message'])
+                                        #print("Generating the taskID " + auth_json4['status']['message'])
                                         if auth_json4['status']['message'] == 'Success':
                                             taskID = auth_json4['task']['taskId']
                                             #print(taskID)
